@@ -123,27 +123,104 @@ elif page == "Dashboard":
     else:
         st.write("No drink logs available to display.")
 
+import geocoder
+import streamlit as st
+import folium
+from streamlit_folium import st_folium
+
+# Initialize session state for locations
+if 'locations' not in st.session_state:
+    st.session_state['locations'] = []
+
+import geocoder
+import streamlit as st
+import folium
+from streamlit_folium import st_folium
+
+# Initialize session state for locations
+if 'locations' not in st.session_state:
+    st.session_state['locations'] = []
+
+# Location Sharing Page
+import geocoder
+import streamlit as st
+import folium
+from streamlit_folium import st_folium
+
+# Initialize session state for locations
+if 'locations' not in st.session_state:
+    st.session_state['locations'] = []
+
 # Location Sharing Page
 elif page == "Location Sharing":
     st.title("Location Sharing")
 
-    with st.form("location_form"):
-        latitude = st.number_input("Enter Latitude:", format="%.6f")
-        longitude = st.number_input("Enter Longitude:", format="%.6f")
-        submit_location = st.form_submit_button("Share Location")
+    # Get the user's current location using geocoder
+    g = geocoder.ip('me')  # Get the location using the current IP address
+    latitude = g.latlng[0] if g.latlng else None
+    longitude = g.latlng[1] if g.latlng else None
 
-        if submit_location:
+    if latitude and longitude:
+        st.write(f"Your current location: Latitude: {latitude}, Longitude: {longitude}")
+
+        # Create a smaller folium map centered at the user's current location
+        m = folium.Map(location=[latitude, longitude], zoom_start=12)
+        folium.Marker([latitude, longitude], popup="Your Location").add_to(m)
+        st_folium(m, width=700, height=400)
+    else:
+        st.write("Unable to get your location. Please try again later.")
+
+    # Share Location Button
+    if st.button("Share My Location"):
+        if latitude and longitude:
+            # Add location to the shared locations
             st.session_state['locations'].append({
                 "latitude": latitude,
                 "longitude": longitude
             })
-            st.success("Location shared successfully!")
+            st.success("Location shared with close friends!")
+        else:
+            st.error("Unable to share location. Try again later.")
 
+    st.markdown("---")
+
+    # Layout for shared locations
     st.write("### Shared Locations")
     if st.session_state['locations']:
-        m = folium.Map(location=[0, 0], zoom_start=2)
         for loc in st.session_state['locations']:
-            folium.Marker([loc['latitude'], loc['longitude']]).add_to(m)
-        st_folium(m, width=700, height=500)
+            st.write(f"Latitude: {loc['latitude']}, Longitude: {loc['longitude']}")
     else:
         st.write("No locations shared yet.")
+
+    # Sidebar for Uber and Lyft
+    with st.sidebar:
+        st.header("Need a Ride?")
+        st.write("Click below to book your ride.")
+
+        # Buttons for Uber and Lyft with automatic redirection
+        if st.button("Book Uber"):
+            st.experimental_rerun()  # Rerun the app to trigger the redirection
+            st.write(f"[Uber](https://www.uber.com)")
+
+        if st.button("Book Lyft"):
+            st.experimental_rerun()  # Rerun the app to trigger the redirection
+            st.write(f"[Lyft](https://www.lyft.com)")
+
+        # Add CSS for styling
+        st.markdown(
+            """
+            <style>
+            .css-1v3fvcr {
+                background-color: #f9f9f9;
+                padding: 10px;
+                border-radius: 8px;
+            }
+            .css-1v3fvcr:hover {
+                background-color: #e2e2e2;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+
+
+
