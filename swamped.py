@@ -197,14 +197,20 @@ elif page == "Location Sharing":
         st.header("Need a Ride?")
         st.write("Click below to book your ride.")
 
-        # Buttons for Uber and Lyft with automatic redirection
-        if st.button("Book Uber"):
-            st.experimental_rerun()  # Rerun the app to trigger the redirection
-            st.write(f"[Uber](https://www.uber.com)")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.link_button("Book Uber", "https://www.uber.com", type="primary")
+        with col2:
+            st.link_button("Book Lyft", "https://www.lyft.com", type="primary")
 
-        if st.button("Book Lyft"):
-            st.experimental_rerun()  # Rerun the app to trigger the redirection
-            st.write(f"[Lyft](https://www.lyft.com)")
+        # # Buttons for Uber and Lyft with automatic redirection
+        # if st.button("Book Uber"):
+        #     st.rerun()  # Rerun the app to trigger the redirection
+        #     st.write(f"[Uber](https://www.uber.com)")
+
+        # if st.button("Book Lyft"):
+        #     st.rerun()  # Rerun the app to trigger the redirection
+        #     st.write(f"[Lyft](https://www.lyft.com)")
 
         # Add CSS for styling
         st.markdown(
@@ -220,7 +226,6 @@ elif page == "Location Sharing":
             }
             </style>
             """, unsafe_allow_html=True)
-
 
 
 
