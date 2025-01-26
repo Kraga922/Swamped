@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import os
 from urllib.parse import urlencode
 import geocoder
+import pymysql
 
 # Load environment variables
 load_dotenv()
@@ -19,6 +20,12 @@ AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
 AUTH0_CLIENT_ID = os.getenv("AUTH0_CLIENT_ID")
 AUTH0_CLIENT_SECRET = os.getenv("AUTH0_CLIENT_SECRET")
 AUTH0_CALLBACK_URL = "http://localhost:8501/"
+
+# Database Configuration
+DB_HOST = "userdrinksdb.czs6iaqeqm1d.us-east-1.rds.amazonaws.com"
+DB_NAME = "UserDrinks"
+DB_USERNAME = "admin"
+DB_PASSWORD = "StrongPassword123"
 
 # Initialize session state
 if 'user' not in st.session_state:
@@ -33,6 +40,7 @@ if 'groups' not in st.session_state:
 if 'locations' not in st.session_state:
     st.session_state['locations'] = []
 
+# Auth0 functions
 def login():
     auth0 = OAuth2Session(
         AUTH0_CLIENT_ID,
@@ -74,14 +82,64 @@ def logout():
     }
     return f'https://{AUTH0_DOMAIN}/v2/logout?{urlencode(params)}'
 
+# Database functions
+def get_connection():
+    return pymysql.connect(
+        host=DB_HOST,
+        user=DB_USERNAME,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        cursorclass=pymysql.cursors.DictCursor
+    )
+
+def insert_user(username):
+    connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute("INSERT INTO Users (username) VALUES (%s)", (username,))
+        connection.commit()
+    connection.close()
+
+def log_drink(username, drink_type, quantity, timestamp):
+    connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT user_id FROM Users WHERE username=%s", (username,))
+        user = cursor.fetchone()
+        if user:
+            user_id = user['user_id']
+            cursor.execute(
+                "INSERT INTO Drinks (user_id, drink_type, quantity_ml, timestamp) VALUES (%s, %s, %s, %s)",
+                (user_id, drink_type, quantity, timestamp)
+            )
+            connection.commit()
+        else:
+            st.error("User not found.")
+    connection.close()
+
+def get_drink_logs(username):
+    connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT user_id FROM Users WHERE username=%s", (username,))
+        user = cursor.fetchone()
+        if user:
+            user_id = user['user_id']
+            cursor.execute("SELECT drink_type, quantity_ml, timestamp FROM Drinks WHERE user_id=%s", (user_id,))
+            drink_logs = cursor.fetchall()
+            connection.close()
+            return drink_logs
+        else:
+            connection.close()
+            st.error("User not found.")
+            return []
+
+# Main app function
 def main_app():
     st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to:", ["Home", "Log Drinks", "Groups", "Dashboard", "Location Sharing"])
+    page = st.sidebar.radio("Go to:", ["Home", "Log Drinks", "Groups", "Dashboard", "Location Sharing", "Add User"])
 
     if page == "Home":
-        st.title("Welcome to the Drink Tracker App")
+        st.title("Welcome to Swamped")
         st.write(f"Hello, {st.session_state['user'].get('email', 'User')}!")
-        st.write("This app helps you log your drinks, share locations, and manage groups to keep track of drinking habits.")
+        st.write("This app helps you log and track your drink consumption.")
         st.write("Features:")
         st.write("- Log your drinks and view drink history.")
         st.write("- Create and join groups to track drinks together.")
@@ -92,25 +150,17 @@ def main_app():
         st.title("Log Your Drinks")
 
         with st.form("drink_log_form"):
+            username = st.text_input("Username:")
             drink_type = st.selectbox("Select Drink Type:", ["Beer", "Wine", "Cocktail", "Other"])
-            quantity = st.number_input("Quantity (in standard drinks):", min_value=0.0, step=0.1)
-            timestamp = st.date_input("Date:", datetime.date.today())
+            quantity = st.number_input("Quantity (in mL):", min_value=0.0, step=10.0)
+            date = st.date_input("Date:", datetime.date.today())
+            time = st.time_input("Time:", datetime.datetime.now().time())
+            timestamp = datetime.datetime.combine(date, time)
             submit = st.form_submit_button("Log Drink")
 
             if submit:
-                st.session_state['drink_logs'].append({
-                    "type": drink_type,
-                    "quantity": quantity,
-                    "timestamp": timestamp
-                })
+                log_drink(username, drink_type, quantity, timestamp)
                 st.success("Drink logged successfully!")
-
-        st.write("### Your Drink Logs")
-        if st.session_state['drink_logs']:
-            logs_df = pd.DataFrame(st.session_state['drink_logs'])
-            st.dataframe(logs_df)
-        else:
-            st.write("No drinks logged yet.")
 
     elif page == "Groups":
         st.title("Manage Groups")
@@ -146,8 +196,10 @@ def main_app():
             with st.form("group_drink_log_form"):
                 member_name = st.text_input("Member Name:")
                 drink_type = st.selectbox("Select Drink Type:", ["Beer", "Wine", "Cocktail", "Other"])
-                quantity = st.number_input("Quantity (in standard drinks):", min_value=0.0, step=0.1)
-                timestamp = st.date_input("Date:", datetime.date.today())
+                quantity = st.number_input("Quantity (in mL):", min_value=0.0, step=10.0)
+                date = st.date_input("Date:", datetime.date.today())
+                time = st.time_input("Time:", datetime.datetime.now().time())
+                timestamp = datetime.datetime.combine(date, time)
                 submit_member_log = st.form_submit_button("Log Drink for Member")
 
                 if submit_member_log:
@@ -162,23 +214,31 @@ def main_app():
     elif page == "Dashboard":
         st.title("Your Dashboard")
 
-        if st.session_state['drink_logs']:
-            logs_df = pd.DataFrame(st.session_state['drink_logs'])
+        username = st.text_input("Username:")
+        show_data = st.button("Show Data")
 
-            total_drinks = logs_df['quantity'].sum()
-            st.write(f"### Total Drinks Logged: {total_drinks}")
+        if show_data:
+            drink_logs = get_drink_logs(username)
 
-            logs_df['timestamp'] = pd.to_datetime(logs_df['timestamp'])
-            daily_summary = logs_df.groupby('timestamp')['quantity'].sum().reset_index()
-            fig = px.line(daily_summary, x='timestamp', y='quantity', title="Drinks Over Time")
-            st.plotly_chart(fig)
-        else:
-            st.write("No drink logs available to display.")
+            if drink_logs:
+                logs_df = pd.DataFrame(drink_logs)
+                logs_df['timestamp'] = pd.to_datetime(logs_df['timestamp'])
+
+                st.write("### Your Drink Logs")
+                st.dataframe(logs_df)
+
+                total_drinks = logs_df['quantity_ml'].sum()
+                st.write(f"### Total Drinks Logged: {total_drinks} mL")
+
+                daily_summary = logs_df.groupby(logs_df['timestamp'].dt.date)['quantity_ml'].sum().reset_index()
+                fig = px.line(daily_summary, x='timestamp', y='quantity_ml', title="Drinks Over Time")
+                st.plotly_chart(fig)
+            else:
+                st.write("No drinks logged yet.")
 
     elif page == "Location Sharing":
         st.title("Location Sharing")
 
-        # Get the user's current location using geocoder
         g = geocoder.ip('me')
         latitude = g.latlng[0] if g.latlng else None
         longitude = g.latlng[1] if g.latlng else None
@@ -186,20 +246,15 @@ def main_app():
         if latitude and longitude:
             st.write(f"Your current location: Latitude: {latitude}, Longitude: {longitude}")
 
-            # Create a smaller folium map centered at the user's current location
             m = folium.Map(location=[latitude, longitude], zoom_start=12)
             folium.Marker([latitude, longitude], popup="Your Location").add_to(m)
             st_folium(m, width=700, height=400)
         else:
             st.write("Unable to get your location. Please try again later.")
 
-        # Share Location Button
         if st.button("Share My Location"):
             if latitude and longitude:
-                st.session_state['locations'].append({
-                    "latitude": latitude,
-                    "longitude": longitude
-                })
+                st.session_state['locations'].append({"latitude": latitude, "longitude": longitude})
                 st.success("Location shared with close friends!")
             else:
                 st.error("Unable to share location. Try again later.")
@@ -213,7 +268,6 @@ def main_app():
         else:
             st.write("No locations shared yet.")
 
-        # Sidebar for Uber and Lyft
         with st.sidebar:
             st.header("Need a Ride?")
             st.write("Click below to book your ride.")
@@ -224,20 +278,19 @@ def main_app():
             with col2:
                 st.link_button("Book Lyft", "https://www.lyft.com", type="primary")
 
-            # Add CSS for styling
-            st.markdown(
-                """
-                <style>
-                .css-1v3fvcr {
-                    background-color: #f9f9f9;
-                    padding: 10px;
-                    border-radius: 8px;
-                }
-                .css-1v3fvcr:hover {
-                    background-color: #e2e2e2;
-                }
-                </style>
-                """, unsafe_allow_html=True)
+    elif page == "Add User":
+        st.title("Add New User")
+
+        with st.form("add_user_form"):
+            new_username = st.text_input("Enter New Username:")
+            submit_user = st.form_submit_button("Add User")
+
+            if submit_user:
+                if new_username:
+                    insert_user(new_username)
+                    st.success(f"User '{new_username}' added successfully!")
+                else:
+                    st.error("Please enter a valid username.")
 
 # Main execution
 if 'user' not in st.session_state or st.session_state['user'] is None:
@@ -255,3 +308,19 @@ if st.session_state['user'] is not None:
         logout_url = logout()
         st.session_state['user'] = None
         st.markdown(f'<meta http-equiv="refresh" content="0;url={logout_url}">', unsafe_allow_html=True)
+
+# Add CSS for styling
+st.markdown(
+    """
+    <style>
+    .css-1v3fvcr {
+        background-color: #f9f9f9;
+        padding: 10px;
+        border-radius: 8px;
+    }
+    .css-1v3fvcr:hover {
+        background-color: #e2e2e2;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
