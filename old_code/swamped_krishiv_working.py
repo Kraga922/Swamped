@@ -1,4 +1,4 @@
-import streamlit as st
+mport streamlit as st
 import pandas as pd
 import plotly.express as px
 import datetime
@@ -133,177 +133,120 @@ def get_drink_logs(username):
 
 # Main app function
 def main_app():
-    st.sidebar.title("Navigation 🧭")
-    page = st.sidebar.radio("Go to:", [
-        "🏠 Home",
-        "🍺 Log Drinks",
-        "👥 Groups",
-        "📊 Dashboard",
-        "📍 Location Sharing",
-        "➕ Add User"
-    ])
+    st.markdown(
+        """
+        <style>
+        .big-button {
+            font-size: 24px !important;
+            height: 75px !important;
+            width: 100% !important;
+            margin-bottom: 20px !important;
+            border-radius: 15px !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+        }
+        .stButton>button {
+            width: 100%;
+        }
+        .stSelectbox>div>div>select {
+            font-size: 20px !important;
+            height: 60px !important;
+        }
+        .stTextInput>div>div>input {
+            font-size: 20px !important;
+            height: 60px !important;
+        }
+        .stNumberInput>div>div>input {
+            font-size: 20px !important;
+            height: 60px !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-    if page == "🏠 Home":
-        st.title("Welcome to Swamped 🍹")
-        st.write(f"Hello, {st.session_state['user'].get('email', 'User')}! 👋")
-        st.write("This app helps you log and track your drink consumption.")
-        st.write("Features:")
-        st.write("- 📝 Log your drinks and view drink history.")
-        st.write("- 👥 Create and join groups to track drinks together.")
-        st.write("- 📍 Share your location with group members in real-time.")
-        st.write("- 📊 View insightful dashboards and trends.")
+    st.title("Swamped 🍹")
 
-    elif page == "🍺 Log Drinks":
-        st.title("Log Your Drinks 🍻")
+    menu = ["Home", "Log Drinks", "Groups", "Dashboard", "Location"]
+    choice = st.selectbox("Menu", menu, key="menu_select")
 
-        with st.form("drink_log_form"):
-            username = st.text_input("👤 Username:")
-            drink_type = st.selectbox("🍷 Select Drink Type:", ["🍺 Beer", "🍷 Wine", "🍸 Cocktail", "🥤 Other"])
-            quantity = st.number_input("🔢 Quantity (in mL):", min_value=0.0, step=10.0)
-            date = st.date_input("📅 Date:", datetime.date.today())
-            time = st.time_input("⏰ Time:", datetime.datetime.now().time())
-            timestamp = datetime.datetime.combine(date, time)
-            submit = st.form_submit_button("🍻 Log Drink", type="primary")
+    if choice == "Home":
+        st.header("Welcome to Swamped! 👋")
+        st.write(f"Hello, {st.session_state['user'].get('email', 'User')}!")
+        st.write("Track your drinks and stay safe with friends.")
 
-            if submit:
-                log_drink(username, drink_type, quantity, timestamp)
-                st.success("Drink logged successfully! 🎉")
+    elif choice == "Log Drinks":
+        st.header("Log Your Drinks 🍻")
+        username = st.text_input("Username", key="username_input")
+        drink_type = st.selectbox("Drink Type", ["🍺 Beer", "🍷 Wine", "🍸 Cocktail", "🥤 Other"], key="drink_type_select")
+        quantity = st.number_input("Quantity (mL)", min_value=0.0, step=10.0, key="quantity_input")
+        if st.button("Log Drink", key="log_drink_button", use_container_width=True):
+            log_drink(username, drink_type, quantity, datetime.datetime.now())
+            st.success("Drink logged successfully! 🎉")
 
-    elif page == "👥 Groups":
-        st.title("Manage Groups 👥")
+    elif choice == "Groups":
+        st.header("Manage Groups 👥")
+        group_name = st.text_input("Group Name", key="group_name_input")
+        action = st.radio("Action", ["Create Group", "Join Group"], key="group_action_radio")
+        if st.button("Submit", key="group_submit_button", use_container_width=True):
+            if action == "Create Group":
+                if group_name not in st.session_state['groups']:
+                    st.session_state['groups'][group_name] = []
+                    st.success(f"Group '{group_name}' created successfully! 🎉")
+                else:
+                    st.error("Group already exists! 😕")
+            elif action == "Join Group":
+                if group_name in st.session_state['groups']:
+                    st.success(f"Joined group '{group_name}' successfully! 🎉")
+                else:
+                    st.error("Group does not exist! 😕")
 
-        with st.form("group_form"):
-            group_name = st.text_input("Group Name:")
-            action = st.radio("Action:", ["Create Group", "Join Group"])
-            submit_group = st.form_submit_button("Submit", type="primary")
-
-            if submit_group:
-                if action == "Create Group":
-                    if group_name not in st.session_state['groups']:
-                        st.session_state['groups'][group_name] = []
-                        st.success(f"Group '{group_name}' created successfully! 🎉")
-                    else:
-                        st.error("Group already exists! 😕")
-                elif action == "Join Group":
-                    if group_name in st.session_state['groups']:
-                        st.success(f"Joined group '{group_name}' successfully! 🎉")
-                    else:
-                        st.error("Group does not exist! 😕")
-
-        st.write("### Your Groups 👥")
-        if st.session_state['groups']:
-            for group, members in st.session_state['groups'].items():
-                st.write(f"- {group}")
-        else:
-            st.write("You are not part of any groups yet. 😊")
-
-        st.write("### Log Drinks for Group Members 🍻")
-        selected_group = st.selectbox("Select Group:", list(st.session_state['groups'].keys()))
-        if selected_group:
-            with st.form("group_drink_log_form"):
-                member_name = st.text_input("👤 Member Name:")
-                drink_type = st.selectbox("🍷 Select Drink Type:", ["🍺 Beer", "🍷 Wine", "🍸 Cocktail", "🥤 Other"])
-                quantity = st.number_input("🔢 Quantity (in mL):", min_value=0.0, step=10.0)
-                date = st.date_input("📅 Date:", datetime.date.today())
-                time = st.time_input("⏰ Time:", datetime.datetime.now().time())
-                timestamp = datetime.datetime.combine(date, time)
-                submit_member_log = st.form_submit_button("Log Drink for Member", type="primary")
-
-                if submit_member_log:
-                    st.session_state['groups'][selected_group].append({
-                        "member": member_name,
-                        "type": drink_type,
-                        "quantity": quantity,
-                        "timestamp": timestamp
-                    })
-                    st.success(f"Logged drink for {member_name} in group '{selected_group}' 🎉")
-
-    elif page == "📊 Dashboard":
-        st.title("Your Dashboard 📊")
-
-        username = st.text_input("👤 Username:")
-        show_data = st.button("📈 Show Data", type="primary")
-
-        if show_data:
+    elif choice == "Dashboard":
+        st.header("Your Dashboard 📊")
+        username = st.text_input("Username", key="dashboard_username_input")
+        if st.button("Show Data", key="show_data_button", use_container_width=True):
             drink_logs = get_drink_logs(username)
-
             if drink_logs:
                 logs_df = pd.DataFrame(drink_logs)
                 logs_df['timestamp'] = pd.to_datetime(logs_df['timestamp'])
-
-                st.write("### 📜 Your Drink Logs")
+                st.write("### Your Drink Logs")
                 st.dataframe(logs_df)
-
                 total_drinks = logs_df['quantity_ml'].sum()
-                st.metric("🍾 Total Drinks Logged", f"{total_drinks} mL")
-
+                st.metric("Total Drinks Logged", f"{total_drinks} mL")
                 daily_summary = logs_df.groupby(logs_df['timestamp'].dt.date)['quantity_ml'].sum().reset_index()
-                fig = px.line(daily_summary, x='timestamp', y='quantity_ml', title="🥃 Drinks Over Time")
+                fig = px.line(daily_summary, x='timestamp', y='quantity_ml', title="Drinks Over Time")
                 st.plotly_chart(fig)
             else:
-                st.info("🔍 No drinks logged yet.")
+                st.info("No drinks logged yet.")
 
-    elif page == "📍 Location Sharing":
-        st.title("Location Sharing 📍")
-
+    elif choice == "Location":
+        st.header("Location Sharing 📍")
         g = geocoder.ip('me')
         latitude = g.latlng[0] if g.latlng else None
         longitude = g.latlng[1] if g.latlng else None
-
         if latitude and longitude:
             st.write(f"Your current location: Latitude: {latitude}, Longitude: {longitude}")
-
             m = folium.Map(location=[latitude, longitude], zoom_start=12)
             folium.Marker([latitude, longitude], popup="Your Location").add_to(m)
             st_folium(m, width=700, height=400)
         else:
             st.write("Unable to get your location. Please try again later. 😕")
-
-        if st.button("📡 Share My Location", type="primary"):
+        if st.button("Share My Location", key="share_location_button", use_container_width=True):
             if latitude and longitude:
                 st.session_state['locations'].append({"latitude": latitude, "longitude": longitude})
-                st.success("📡 Location shared with close friends!")
+                st.success("Location shared with close friends!")
             else:
-                st.error("❌ Unable to share location. Try again later.")
+                st.error("Unable to share location. Try again later.")
 
-        st.markdown("---")
-
-        st.write("### 🗺️ Shared Locations")
-        if st.session_state['locations']:
-            for loc in st.session_state['locations']:
-                st.write(f"Latitude: {loc['latitude']}, Longitude: {loc['longitude']}")
-        else:
-            st.write("No locations shared yet. 😊")
-
-        with st.sidebar:
-            st.header("Need a Ride? 🚗")
-            st.write("Click below to book your ride.")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.link_button("Book Uber", "https://www.uber.com", type="primary")
-            with col2:
-                st.link_button("Book Lyft", "https://www.lyft.com", type="primary")
-
-    elif page == "➕ Add User":
-        st.title("Add New User ➕")
-
-        with st.form("add_user_form"):
-            new_username = st.text_input("Enter New Username:")
-            submit_user = st.form_submit_button("Add User", type="primary")
-
-            if submit_user:
-                if new_username:
-                    insert_user(new_username)
-                    st.success(f"User '{new_username}' added successfully! 🎉")
-                else:
-                    st.error("Please enter a valid username. 😕")
+    st.markdown("---")
+    if st.button("Need a Ride? 🚗", key="ride_button", use_container_width=True):
+        st.markdown("[Book Uber](https://www.uber.com)")
+        st.markdown("[Book Lyft](https://www.lyft.com)")
 
 # Main execution
 if 'user' not in st.session_state or st.session_state['user'] is None:
     if "code" in st.query_params:
         callback()
-    elif st.button("🔐 Login with Auth0", type="primary"):
+    elif st.button("Login with Auth0", key="login_button", use_container_width=True):
         auth_url = login()
         st.markdown(f'<meta http-equiv="refresh" content="0;url={auth_url}">', unsafe_allow_html=True)
 else:
@@ -311,34 +254,7 @@ else:
 
 # Logout button
 if st.session_state['user'] is not None:
-    if st.sidebar.button("🚪 Logout", type="secondary"):
+    if st.sidebar.button("Logout", key="logout_button", use_container_width=True):
         logout_url = logout()
         st.session_state['user'] = None
         st.markdown(f'<meta http-equiv="refresh" content="0;url={logout_url}">', unsafe_allow_html=True)
-
-# Add CSS for styling
-st.markdown(
-    """
-    <style>
-    .css-1v3fvcr {
-        background-color: #f9f9f9;
-        padding: 10px;
-        border-radius: 8px;
-    }
-    .css-1v3fvcr:hover {
-        background-color: #e2e2e2;
-    }
-    .stButton>button {
-        color: #ffffff;
-        background-color: #4CAF50;
-        border: none;
-        border-radius: 4px;
-        padding: 10px 24px;
-        cursor: pointer;
-    }
-    .stButton>button:hover {
-        background-color: #45a049;
-    }
-    </style>
-    """, unsafe_allow_html=True
-)
