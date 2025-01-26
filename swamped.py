@@ -46,15 +46,14 @@ def login():
     return authorization_url
 
 def callback():
-    params = st.experimental_get_query_params()
-    code = params.get("code")
+    code = st.query_params.get("code")
     if code:
         token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
         token_payload = {
             "grant_type": "authorization_code",
             "client_id": AUTH0_CLIENT_ID,
             "client_secret": AUTH0_CLIENT_SECRET,
-            "code": code[0],
+            "code": code,
             "redirect_uri": AUTH0_CALLBACK_URL
         }
         token_response = requests.post(token_url, json=token_payload)
@@ -242,8 +241,7 @@ def main_app():
 
 # Main execution
 if 'user' not in st.session_state or st.session_state['user'] is None:
-    params = st.experimental_get_query_params()
-    if "code" in params:
+    if "code" in st.query_params:
         callback()
     elif st.button("Login with Auth0"):
         auth_url = login()
