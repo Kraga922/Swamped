@@ -1,1 +1,15 @@
+[theme]
+# Main brand color (sage green)
+primaryColor = "#ACC18A"
 
+# Light sage background for main content
+backgroundColor = "#E6F0DC"
+
+# Slightly darker sage for secondary elements
+secondaryBackgroundColor = "#D1D4C9"
+
+# Dark green for text and important elements
+textColor = "#2D3A36"
+
+# Modern, clean font
+font = "sans serif"
