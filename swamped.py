@@ -160,11 +160,11 @@ def calculate_BAL(username, weight):
         alcohol_content = {
             "Beer": 0.05,
             "Wine": 0.12,
-            "Cocktail": 0.40,
-            "Other": 0.15
+            "Cocktail": 0.15,
+            "Spirit": 0.40
         }
 
-        alcohol_in_drink = quantity_ml * alcohol_content.get(drink_type, 0.15) * 0.789
+        alcohol_in_drink = quantity_ml * alcohol_content.get(drink_type, 0.15) /1000
         total_alcohol += alcohol_in_drink
 
     # Widmark formula
@@ -305,7 +305,7 @@ def main_app():
 
         with st.form("drink_log_form"):
             username = st.text_input("👤 Username:")
-            drink_type = st.selectbox("🍷 Select Drink Type:", ["🍺 Beer", "🍷 Wine", "🍸 Cocktail", "🥤 Other"])
+            drink_type = st.selectbox("🍷 Select Drink Type:", ["🍺 Beer", "🍷 Wine", "🍸 Cocktail", "🥤 Spirit"])
             quantity = st.number_input("🔢 Quantity (in mL):", min_value=0.0, step=10.0)
             date = st.date_input("📅 Date:", datetime.date.today())
             time = st.time_input("⏰ Time:", datetime.datetime.now().time())
@@ -423,7 +423,7 @@ def main_app():
 
                 member_name = st.selectbox("👤 Select Member:", current_members)
 
-                drink_type = st.selectbox("🍷 Select Drink Type:", ["🍺 Beer", "🍷 Wine", "🍸 Cocktail", "🥤 Other"])
+                drink_type = st.selectbox("🍷 Select Drink Type:", ["🍺 Beer", "🍷 Wine", "🍸 Cocktail", "🥤 Spirit"])
 
                 quantity = st.number_input("🔢 Quantity (in mL):", min_value=0.0, step=10.0)
 
