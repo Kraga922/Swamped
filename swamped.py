@@ -277,6 +277,17 @@ def main_app():
         "📍 Location Sharing",
         "➕ Add User"
     ])
+    with st.sidebar:
+        st.markdown("---")  # Add a separator line
+        st.header("Need a Ride? 🚗")
+        st.write("Click below to book your ride.")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.link_button("Book Uber", "https://www.uber.com", type="primary")
+        with col2:
+            st.link_button("Book Lyft", "https://www.lyft.com", type="primary")
+        st.markdown("---")
 
     if page == "🏠 Home":
         st.title("Welcome to Swamped 🍹")
@@ -571,15 +582,6 @@ def main_app():
         else:
             st.write("No locations shared yet. 😊")
 
-        with st.sidebar:
-            st.header("Need a Ride? 🚗")
-            st.write("Click below to book your ride.")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.link_button("Book Uber", "https://www.uber.com", type="primary")
-            with col2:
-                st.link_button("Book Lyft", "https://www.lyft.com", type="primary")
 
 
     elif page == "➕ Add User":
