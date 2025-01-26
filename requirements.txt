@@ -1,0 +1,11 @@
+streamlit
+pandas
+plotly
+folium
+streamlit-folium
+authlib
+python-dotenv
+requests
+geocoder
+pymysql
+auth0-python==3.24.0
