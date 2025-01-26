@@ -6,19 +6,16 @@ import folium
 from streamlit_folium import st_folium
 from authlib.integrations.requests_client import OAuth2Session
 import requests
-from dotenv import load_dotenv
 import os
 from urllib.parse import urlencode
 import geocoder
 import pymysql
 
-# Load environment variables
-load_dotenv()
 
 # Auth0 configuration
-AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
-AUTH0_CLIENT_ID = os.getenv("AUTH0_CLIENT_ID")
-AUTH0_CLIENT_SECRET = os.getenv("AUTH0_CLIENT_SECRET")
+AUTH0_DOMAIN="dev-i0xqob7z3wcxgnv6.us.auth0.com"
+AUTH0_CLIENT_ID="nli9lfPOU4Et0gyypt0yW3k2aBVEnj9T"
+AUTH0_CLIENT_SECRET="uAKVGMg_BwlbxpXciZ6VHESXGAz6u-nU2AHVLiw1CELwaz_WF0C3ToWqVw9dCkg3"
 AUTH0_CALLBACK_URL = "http://localhost:8501/"
 
 # Database Configuration
@@ -99,6 +96,26 @@ def insert_user(username):
         connection.commit()
     connection.close()
 
+# Add weight to the user's information
+def update_user_weight(username, weight):
+    connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute("UPDATE Users SET weight=%s WHERE username=%s", (weight, username))
+        connection.commit()
+    connection.close()
+
+# Get user's weight
+def get_user_weight(username):
+    connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT weight FROM Users WHERE username=%s", (username,))
+        user = cursor.fetchone()
+        connection.close()
+        if user:
+            return user['weight']
+        else:
+            return None
+
 def log_drink(username, drink_type, quantity, timestamp):
     connection = get_connection()
     with connection.cursor() as cursor:
@@ -115,26 +132,131 @@ def log_drink(username, drink_type, quantity, timestamp):
             st.error("User not found.")
     connection.close()
 
-def get_drink_logs(username):
+# BAL Calculation Function (simplified)
+def calculate_BAL(username, weight):
+    if weight is None or weight <= 0:
+        return None
+
+    drink_logs = get_drink_logs(username)
+    total_alcohol = 0
+
+    for log in drink_logs:
+        quantity_ml = log['quantity_ml']
+        drink_type = log['drink_type']
+
+        alcohol_content = {
+            "Beer": 0.05,
+            "Wine": 0.12,
+            "Cocktail": 0.40,
+            "Other": 0.15
+        }
+
+        alcohol_in_drink = quantity_ml * alcohol_content.get(drink_type, 0.15) * 0.789
+        total_alcohol += alcohol_in_drink
+
+    # Widmark formula
+    r = 0.68  # for males, use 0.55 for females
+    BAL = (total_alcohol / (weight * 1000 * r)) * 100
+    return BAL
+
+# Add friend (Updated Function)
+def add_friend(friend_username):
+    if 'logged_in_user' not in st.session_state:
+        st.error("You must log in to add friends.")
+        return
+
+    user_username = st.session_state['logged_in_user']
+
+    connection = get_connection()
+    with connection.cursor() as cursor:
+        # Fetch user_id for the current user
+        cursor.execute("SELECT user_id FROM Users WHERE username=%s", (user_username,))
+        user = cursor.fetchone()
+
+        # Fetch user_id for the friend
+        cursor.execute("SELECT user_id FROM Users WHERE username=%s", (friend_username,))
+        friend = cursor.fetchone()
+
+        if user and friend:
+            user_id = user['user_id']
+            friend_id = friend['user_id']
+
+            # Check if the friendship already exists
+            cursor.execute(
+                "SELECT * FROM Friends WHERE user_id=%s AND friend_id=%s", (user_id, friend_id)
+            )
+            existing_friendship = cursor.fetchone()
+
+            if not existing_friendship:
+                cursor.execute(
+                    "INSERT INTO Friends (user_id, friend_id) VALUES (%s, %s)",
+                    (user_id, friend_id)
+                )
+                connection.commit()
+                st.success(f"Friend '{friend_username}' added!")
+            else:
+                st.warning(f"'{friend_username}' is already your friend.")
+        else:
+            if not friend:
+                st.error(f"User '{friend_username}' not found.")
+    connection.close()
+
+
+# Get user's friends
+def get_friends(username):
     connection = get_connection()
     with connection.cursor() as cursor:
         cursor.execute("SELECT user_id FROM Users WHERE username=%s", (username,))
         user = cursor.fetchone()
+
         if user:
             user_id = user['user_id']
-            cursor.execute("SELECT drink_type, quantity_ml, timestamp FROM Drinks WHERE user_id=%s", (user_id,))
-            drink_logs = cursor.fetchall()
+            cursor.execute("SELECT f.friend_id, u.username FROM Friends f JOIN Users u ON f.friend_id = u.user_id WHERE f.user_id=%s", (user_id,))
+            friends = cursor.fetchall()
             connection.close()
-            return drink_logs
+            return [friend['username'] for friend in friends]
         else:
             connection.close()
-            st.error("User not found.")
             return []
+
+
+def get_drink_logs(username):
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT user_id FROM Users WHERE username=%s", (username,))
+            user = cursor.fetchone()
+            if user:
+                user_id = user['user_id']
+                cursor.execute("SELECT drink_type, quantity_ml, timestamp FROM Drinks WHERE user_id=%s", (user_id,))
+                drink_logs = cursor.fetchall()
+                return drink_logs
+            else:
+                st.error("User not found.")
+                return []
+    except Exception as e:
+        st.error(f"Database error: {str(e)}")
+        return []
+    finally:
+        connection.close()
+
+# User login
+def login_user(username):
+    connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT * FROM Users WHERE username=%s", (username,))
+        user = cursor.fetchone()
+        if user:
+            st.session_state['logged_in_user'] = user['username']
+            st.success(f"Logged in as {user['username']}")
+        else:
+            st.error("User not found. Please register first.")
+    connection.close()
 
 # Main app function
 def main_app():
     st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to:", ["Home", "Log Drinks", "Groups", "Dashboard", "Location Sharing", "Add User"])
+    page = st.sidebar.radio("Go to:", ["Home", "Log Drinks", "Groups", "Dashboard", "Location Sharing", "Add User", "Login"])
 
     if page == "Home":
         st.title("Welcome to Swamped")
@@ -162,79 +284,238 @@ def main_app():
                 log_drink(username, drink_type, quantity, timestamp)
                 st.success("Drink logged successfully!")
 
+
+
+
     elif page == "Groups":
+
         st.title("Manage Groups")
 
+        # Group management form
+
         with st.form("group_form"):
+
             group_name = st.text_input("Group Name:")
+
             action = st.radio("Action:", ["Create Group", "Join Group"])
+
             submit_group = st.form_submit_button("Submit")
 
             if submit_group:
+
                 if action == "Create Group":
+
                     if group_name not in st.session_state['groups']:
-                        st.session_state['groups'][group_name] = []
+
+                        st.session_state['groups'][group_name] = {"members": [], "logs": []}
+
                         st.success(f"Group '{group_name}' created successfully!")
+
                     else:
+
                         st.error("Group already exists!")
+
                 elif action == "Join Group":
+
                     if group_name in st.session_state['groups']:
+
                         st.success(f"Joined group '{group_name}' successfully!")
+
                     else:
+
                         st.error("Group does not exist!")
 
         st.write("### Your Groups")
+
         if st.session_state['groups']:
-            for group, members in st.session_state['groups'].items():
-                st.write(f"- {group}")
+
+            for group, details in st.session_state['groups'].items():
+                st.write(f"- {group} ({len(details['members'])} members)")
+
         else:
+
             st.write("You are not part of any groups yet.")
 
-        st.write("### Log Drinks for Group Members")
+        # Adding and logging drinks for group members
+
+        st.write("### Manage Group Members and Drinks")
+
         selected_group = st.selectbox("Select Group:", list(st.session_state['groups'].keys()))
+
         if selected_group:
+
+            # Adding a new member to the group
+
+            with st.form("add_member_form"):
+
+                new_member = st.text_input("Member Name:")
+
+                submit_add_member = st.form_submit_button("Add Member")
+
+                if submit_add_member:
+
+                    if new_member:
+
+                        if new_member not in st.session_state['groups'][selected_group]["members"]:
+
+                            st.session_state['groups'][selected_group]["members"].append(new_member)
+
+                            st.success(f"Added {new_member} to group '{selected_group}'")
+
+                        else:
+
+                            st.error(f"{new_member} is already in the group!")
+
+                    else:
+
+                        st.error("Member name cannot be empty!")
+
+            st.write(f"### Members of '{selected_group}'")
+
+            current_members = st.session_state['groups'][selected_group]["members"]
+
+            if current_members:
+
+                for member in current_members:
+                    st.write(f"- {member}")
+
+            else:
+
+                st.write("No members in this group.")
+
+            # Logging drinks for group members
+
+            st.write("### Log Drinks for Group Members")
+
             with st.form("group_drink_log_form"):
-                member_name = st.text_input("Member Name:")
+
+                member_name = st.selectbox("Select Member:", current_members)
+
                 drink_type = st.selectbox("Select Drink Type:", ["Beer", "Wine", "Cocktail", "Other"])
+
                 quantity = st.number_input("Quantity (in mL):", min_value=0.0, step=10.0)
+
                 date = st.date_input("Date:", datetime.date.today())
+
                 time = st.time_input("Time:", datetime.datetime.now().time())
+
                 timestamp = datetime.datetime.combine(date, time)
-                submit_member_log = st.form_submit_button("Log Drink for Member")
+
+                submit_member_log = st.form_submit_button("Log Drink")
 
                 if submit_member_log:
-                    st.session_state['groups'][selected_group].append({
-                        "member": member_name,
-                        "type": drink_type,
-                        "quantity": quantity,
-                        "timestamp": timestamp
-                    })
-                    st.success(f"Logged drink for {member_name} in group '{selected_group}'")
+
+                    if member_name:
+
+                        # Log the drink for the selected group member
+
+                        log_drink(member_name, drink_type, quantity, timestamp)
+
+                        st.success(
+                            f"Logged {quantity} mL of {drink_type} for {member_name} in group '{selected_group}'")
+
+                    else:
+
+                        st.error("Please select a member to log the drink for.")
 
     elif page == "Dashboard":
+
         st.title("Your Dashboard")
 
         username = st.text_input("Username:")
+
+        weight = st.number_input("Weight (in kg):", min_value=0.0, step=1.0)
+
         show_data = st.button("Show Data")
 
         if show_data:
+
             drink_logs = get_drink_logs(username)
 
             if drink_logs:
+
                 logs_df = pd.DataFrame(drink_logs)
+
                 logs_df['timestamp'] = pd.to_datetime(logs_df['timestamp'])
 
                 st.write("### Your Drink Logs")
+
                 st.dataframe(logs_df)
 
                 total_drinks = logs_df['quantity_ml'].sum()
+
                 st.write(f"### Total Drinks Logged: {total_drinks} mL")
 
-                daily_summary = logs_df.groupby(logs_df['timestamp'].dt.date)['quantity_ml'].sum().reset_index()
-                fig = px.line(daily_summary, x='timestamp', y='quantity_ml', title="Drinks Over Time")
-                st.plotly_chart(fig)
+                BAL = calculate_BAL(username, weight)
+
+                if BAL is not None:
+
+                    st.write(f"### Estimated Blood Alcohol Level: {BAL:.3f}%")
+
+                    if BAL >= 0.08:
+
+                        st.error(
+                            "🚨 DANGER: Your estimated BAL is dangerously high. Please stop drinking immediately.")
+
+                        st.warning(
+                            "You should not be operating this app. Please seek help or call a trusted friend or family member for assistance.")
+
+                        st.info(
+                            "If you're feeling unwell or experiencing any concerning symptoms, don't hesitate to call emergency services.")
+
+                    elif BAL >= 0.05:
+
+                        st.warning(
+                            "🚧 CAUTION: Your BAL is approaching unsafe levels. It's time to slow down or stop drinking.")
+
+                        st.info(
+                            "Consider eating some food and drinking water to help metabolize the alcohol. Stay safe and avoid any risky activities.")
+
+                    elif BAL >= 0.03:
+
+                        st.info("💧 REMINDER: Remember to stay hydrated. Alternate alcoholic drinks with water.")
+
+                        st.info(
+                            "Eating a snack can help slow alcohol absorption. Be mindful of your consumption and stay safe.")
+
+                    # Display BAL chart
+
+                    daily_summary = logs_df.groupby(logs_df['timestamp'].dt.date)['quantity_ml'].sum().reset_index()
+
+                    fig = px.line(daily_summary, x='timestamp', y='quantity_ml', title="Drinks Over Time")
+
+                    st.plotly_chart(fig)
+
+                    # Provide general safety tips
+
+                    st.subheader("Safety Tips")
+
+                    st.markdown("""
+
+                    - Pace yourself and sip slowly[32]
+
+                    - Use drink "spacers" — non-alcoholic drinks between alcoholic ones[32]
+
+                    - Choose drinks with lower alcohol content[32]
+
+                    - Eat before or while drinking to slow alcohol absorption[32]
+
+                    - Be ready to say "no thanks" if offered a drink when you don't want one[32]
+
+                    - Never drink and drive - always have a designated driver or use a ride-sharing service[32]
+
+                    """)
+
+                else:
+
+                    st.error("Unable to calculate BAL. Please check your weight input.")
+
             else:
+
                 st.write("No drinks logged yet.")
+
+
+
 
     elif page == "Location Sharing":
         st.title("Location Sharing")
@@ -291,6 +572,15 @@ def main_app():
                     st.success(f"User '{new_username}' added successfully!")
                 else:
                     st.error("Please enter a valid username.")
+
+    elif page == "Login":
+        st.header("Login")
+        username = st.text_input("Username")
+        if st.button("Login"):
+            if username:
+                login_user(username)
+            else:
+                st.warning("Please enter a username.")
 
 # Main execution
 if 'user' not in st.session_state or st.session_state['user'] is None:
