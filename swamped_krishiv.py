@@ -1,11 +1,25 @@
 import streamlit as st
-import pymysql
 import pandas as pd
 import plotly.express as px
-from datetime import datetime, timedelta
+import datetime
 import folium
 from streamlit_folium import st_folium
+from authlib.integrations.requests_client import OAuth2Session
+import requests
+from dotenv import load_dotenv
+import os
+from urllib.parse import urlencode
 import geocoder
+import pymysql
+
+# Load environment variables
+load_dotenv()
+
+# Auth0 configuration
+AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
+AUTH0_CLIENT_ID = os.getenv("AUTH0_CLIENT_ID")
+AUTH0_CLIENT_SECRET = os.getenv("AUTH0_CLIENT_SECRET")
+AUTH0_CALLBACK_URL = "http://localhost:8501/"
 
 # Database Configuration
 DB_HOST = "userdrinksdb.czs6iaqeqm1d.us-east-1.rds.amazonaws.com"
@@ -13,7 +27,62 @@ DB_NAME = "UserDrinks"
 DB_USERNAME = "admin"
 DB_PASSWORD = "StrongPassword123"
 
-# Connect to the RDS Database
+# Initialize session state
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
+
+if 'drink_logs' not in st.session_state:
+    st.session_state['drink_logs'] = []
+
+if 'groups' not in st.session_state:
+    st.session_state['groups'] = {}
+
+if 'locations' not in st.session_state:
+    st.session_state['locations'] = []
+
+# Auth0 functions
+def login():
+    auth0 = OAuth2Session(
+        AUTH0_CLIENT_ID,
+        AUTH0_CLIENT_SECRET,
+        scope="openid profile email"
+    )
+    authorization_url, _ = auth0.create_authorization_url(
+        f"https://{AUTH0_DOMAIN}/authorize",
+        redirect_uri=AUTH0_CALLBACK_URL
+    )
+    return authorization_url
+
+def callback():
+    code = st.query_params.get("code")
+    if code:
+        token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
+        token_payload = {
+            "grant_type": "authorization_code",
+            "client_id": AUTH0_CLIENT_ID,
+            "client_secret": AUTH0_CLIENT_SECRET,
+            "code": code,
+            "redirect_uri": AUTH0_CALLBACK_URL
+        }
+        token_response = requests.post(token_url, json=token_payload)
+        if token_response.status_code == 200:
+            tokens = token_response.json()
+            st.session_state['user'] = tokens
+            st.success("Login successful!")
+            st.rerun()
+        else:
+            st.error("Login failed. Please try again.")
+    else:
+        st.error("No authorization code received. Please try logging in again.")
+
+def logout():
+    params = {
+        'returnTo': 'http://localhost:8501',
+        'client_id': AUTH0_CLIENT_ID
+    }
+    return f'https://{AUTH0_DOMAIN}/v2/logout?{urlencode(params)}'
+
+# Database functions
 def get_connection():
     return pymysql.connect(
         host=DB_HOST,
@@ -23,7 +92,6 @@ def get_connection():
         cursorclass=pymysql.cursors.DictCursor
     )
 
-# Function to insert a new user
 def insert_user(username):
     connection = get_connection()
     with connection.cursor() as cursor:
@@ -31,7 +99,6 @@ def insert_user(username):
         connection.commit()
     connection.close()
 
-# Function to log a drink for the user
 def log_drink(username, drink_type, quantity, timestamp):
     connection = get_connection()
     with connection.cursor() as cursor:
@@ -48,7 +115,6 @@ def log_drink(username, drink_type, quantity, timestamp):
             st.error("User not found.")
     connection.close()
 
-# Function to retrieve the user's drink logs
 def get_drink_logs(username):
     connection = get_connection()
     with connection.cursor() as cursor:
@@ -65,164 +131,183 @@ def get_drink_logs(username):
             st.error("User not found.")
             return []
 
-# Initialize session state
-if 'locations' not in st.session_state:
-    st.session_state['locations'] = []
+# Main app function
+def main_app():
+    st.sidebar.title("Navigation")
+    page = st.sidebar.radio("Go to:", ["Home", "Log Drinks", "Groups", "Dashboard", "Location Sharing", "Add User"])
 
-# Sidebar for Navigation
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to:", ["Home", "Log Drinks", "Groups", "Dashboard", "Location Sharing", "Add User"])
+    if page == "Home":
+        st.title("Welcome to Swamped")
+        st.write(f"Hello, {st.session_state['user'].get('email', 'User')}!")
+        st.write("This app helps you log and track your drink consumption.")
+        st.write("Features:")
+        st.write("- Log your drinks and view drink history.")
+        st.write("- Create and join groups to track drinks together.")
+        st.write("- Share your location with group members in real-time.")
+        st.write("- View insightful dashboards and trends.")
 
-# Home Page
-if page == "Home":
-    st.title("Welcome to Swamped")
-    st.write("This app helps you log and track your drink consumption.")
-    st.write("Features:")
-    st.write("- Log your drinks and view drink history.")
-    st.write("- Create and join groups to track drinks together.")
-    st.write("- Share your location with group members in real-time.")
-    st.write("- View insightful dashboards and trends.")
+    elif page == "Log Drinks":
+        st.title("Log Your Drinks")
 
-# Log Drinks Page
-elif page == "Log Drinks":
-    st.title("Log Your Drinks")
-
-    with st.form("drink_log_form"):
-        username = st.text_input("Username:")
-        drink_type = st.selectbox("Select Drink Type:", ["Beer", "Wine", "Cocktail", "Other"])
-        quantity = st.number_input("Quantity (in mL):", min_value=0.0, step=10.0)
-        date = st.date_input("Date:", datetime.today())
-        time = st.time_input("Time:", datetime.now().time())
-        timestamp = datetime.combine(date, time)
-        submit = st.form_submit_button("Log Drink")
-
-        if submit:
-            log_drink(username, drink_type, quantity, timestamp)
-            st.success("Drink logged successfully!")
-
-# Groups Page
-elif page == "Groups":
-    st.title("Manage Groups")
-
-    # Create or Join a Group
-    with st.form("group_form"):
-        group_name = st.text_input("Group Name:")
-        action = st.radio("Action:", ["Create Group", "Join Group"])
-        submit_group = st.form_submit_button("Submit")
-
-        if submit_group:
-            if action == "Create Group":
-                # Implement group creation logic here
-                st.success(f"Group '{group_name}' created successfully!")
-            elif action == "Join Group":
-                # Implement group joining logic here
-                st.success(f"Joined group '{group_name}' successfully!")
-
-    st.write("### Your Groups")
-    # Implement group listing logic here
-
-    # Log Drinks for Group Members
-    st.write("### Log Drinks for Group Members")
-    selected_group = st.selectbox("Select Group:", ["Group 1", "Group 2"])  # Replace with actual group names
-    if selected_group:
-        with st.form("group_drink_log_form"):
-            member_name = st.text_input("Member Name:")
+        with st.form("drink_log_form"):
+            username = st.text_input("Username:")
             drink_type = st.selectbox("Select Drink Type:", ["Beer", "Wine", "Cocktail", "Other"])
             quantity = st.number_input("Quantity (in mL):", min_value=0.0, step=10.0)
-            date = st.date_input("Date:", datetime.today())
-            time = st.time_input("Time:", datetime.now().time())
-            timestamp = datetime.combine(date, time)
-            submit_member_log = st.form_submit_button("Log Drink for Member")
+            date = st.date_input("Date:", datetime.date.today())
+            time = st.time_input("Time:", datetime.datetime.now().time())
+            timestamp = datetime.datetime.combine(date, time)
+            submit = st.form_submit_button("Log Drink")
 
-            if submit_member_log:
-                # Implement group member drink logging logic here
-                st.success(f"Logged drink for {member_name} in group '{selected_group}'")
+            if submit:
+                log_drink(username, drink_type, quantity, timestamp)
+                st.success("Drink logged successfully!")
 
-# Dashboard Page
-elif page == "Dashboard":
-    st.title("Your Dashboard")
+    elif page == "Groups":
+        st.title("Manage Groups")
 
-    username = st.text_input("Username:")
-    show_data = st.button("Show Data")
+        with st.form("group_form"):
+            group_name = st.text_input("Group Name:")
+            action = st.radio("Action:", ["Create Group", "Join Group"])
+            submit_group = st.form_submit_button("Submit")
 
-    if show_data:
-        drink_logs = get_drink_logs(username)
+            if submit_group:
+                if action == "Create Group":
+                    if group_name not in st.session_state['groups']:
+                        st.session_state['groups'][group_name] = []
+                        st.success(f"Group '{group_name}' created successfully!")
+                    else:
+                        st.error("Group already exists!")
+                elif action == "Join Group":
+                    if group_name in st.session_state['groups']:
+                        st.success(f"Joined group '{group_name}' successfully!")
+                    else:
+                        st.error("Group does not exist!")
 
-        if drink_logs:
-            logs_df = pd.DataFrame(drink_logs)
-            logs_df['timestamp'] = pd.to_datetime(logs_df['timestamp'])
-
-            st.write("### Your Drink Logs")
-            st.dataframe(logs_df)
-
-            # Summary Stats
-            total_drinks = logs_df['quantity_ml'].sum()
-            st.write(f"### Total Drinks Logged: {total_drinks} mL")
-
-            # Drinks Over Time
-            daily_summary = logs_df.groupby(logs_df['timestamp'].dt.date)['quantity_ml'].sum().reset_index()
-            fig = px.line(daily_summary, x='timestamp', y='quantity_ml', title="Drinks Over Time")
-            st.plotly_chart(fig)
+        st.write("### Your Groups")
+        if st.session_state['groups']:
+            for group, members in st.session_state['groups'].items():
+                st.write(f"- {group}")
         else:
-            st.write("No drinks logged yet.")
+            st.write("You are not part of any groups yet.")
 
-# Location Sharing Page
-elif page == "Location Sharing":
-    st.title("Location Sharing")
+        st.write("### Log Drinks for Group Members")
+        selected_group = st.selectbox("Select Group:", list(st.session_state['groups'].keys()))
+        if selected_group:
+            with st.form("group_drink_log_form"):
+                member_name = st.text_input("Member Name:")
+                drink_type = st.selectbox("Select Drink Type:", ["Beer", "Wine", "Cocktail", "Other"])
+                quantity = st.number_input("Quantity (in mL):", min_value=0.0, step=10.0)
+                date = st.date_input("Date:", datetime.date.today())
+                time = st.time_input("Time:", datetime.datetime.now().time())
+                timestamp = datetime.datetime.combine(date, time)
+                submit_member_log = st.form_submit_button("Log Drink for Member")
 
-    g = geocoder.ip('me')
-    latitude = g.latlng[0] if g.latlng else None
-    longitude = g.latlng[1] if g.latlng else None
+                if submit_member_log:
+                    st.session_state['groups'][selected_group].append({
+                        "member": member_name,
+                        "type": drink_type,
+                        "quantity": quantity,
+                        "timestamp": timestamp
+                    })
+                    st.success(f"Logged drink for {member_name} in group '{selected_group}'")
 
-    if latitude and longitude:
-        st.write(f"Your current location: Latitude: {latitude}, Longitude: {longitude}")
+    elif page == "Dashboard":
+        st.title("Your Dashboard")
 
-        m = folium.Map(location=[latitude, longitude], zoom_start=12)
-        folium.Marker([latitude, longitude], popup="Your Location").add_to(m)
-        st_folium(m, width=700, height=400)
-    else:
-        st.write("Unable to get your location. Please try again later.")
+        username = st.text_input("Username:")
+        show_data = st.button("Show Data")
 
-    if st.button("Share My Location"):
-        if latitude and longitude:
-            st.session_state['locations'].append({"latitude": latitude, "longitude": longitude})
-            st.success("Location shared with close friends!")
-        else:
-            st.error("Unable to share location. Try again later.")
+        if show_data:
+            drink_logs = get_drink_logs(username)
 
-    st.markdown("---")
+            if drink_logs:
+                logs_df = pd.DataFrame(drink_logs)
+                logs_df['timestamp'] = pd.to_datetime(logs_df['timestamp'])
 
-    st.write("### Shared Locations")
-    if st.session_state['locations']:
-        for loc in st.session_state['locations']:
-            st.write(f"Latitude: {loc['latitude']}, Longitude: {loc['longitude']}")
-    else:
-        st.write("No locations shared yet.")
+                st.write("### Your Drink Logs")
+                st.dataframe(logs_df)
 
-    with st.sidebar:
-        st.header("Need a Ride?")
-        st.write("Click below to book your ride.")
+                total_drinks = logs_df['quantity_ml'].sum()
+                st.write(f"### Total Drinks Logged: {total_drinks} mL")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.link_button("Book Uber", "https://www.uber.com", type="primary")
-        with col2:
-            st.link_button("Book Lyft", "https://www.lyft.com", type="primary")
-
-# Add User Page
-elif page == "Add User":
-    st.title("Add New User")
-
-    with st.form("add_user_form"):
-        new_username = st.text_input("Enter New Username:")
-        submit_user = st.form_submit_button("Add User")
-
-        if submit_user:
-            if new_username:
-                insert_user(new_username)
-                st.success(f"User '{new_username}' added successfully!")
+                daily_summary = logs_df.groupby(logs_df['timestamp'].dt.date)['quantity_ml'].sum().reset_index()
+                fig = px.line(daily_summary, x='timestamp', y='quantity_ml', title="Drinks Over Time")
+                st.plotly_chart(fig)
             else:
-                st.error("Please enter a valid username.")
+                st.write("No drinks logged yet.")
+
+    elif page == "Location Sharing":
+        st.title("Location Sharing")
+
+        g = geocoder.ip('me')
+        latitude = g.latlng[0] if g.latlng else None
+        longitude = g.latlng[1] if g.latlng else None
+
+        if latitude and longitude:
+            st.write(f"Your current location: Latitude: {latitude}, Longitude: {longitude}")
+
+            m = folium.Map(location=[latitude, longitude], zoom_start=12)
+            folium.Marker([latitude, longitude], popup="Your Location").add_to(m)
+            st_folium(m, width=700, height=400)
+        else:
+            st.write("Unable to get your location. Please try again later.")
+
+        if st.button("Share My Location"):
+            if latitude and longitude:
+                st.session_state['locations'].append({"latitude": latitude, "longitude": longitude})
+                st.success("Location shared with close friends!")
+            else:
+                st.error("Unable to share location. Try again later.")
+
+        st.markdown("---")
+
+        st.write("### Shared Locations")
+        if st.session_state['locations']:
+            for loc in st.session_state['locations']:
+                st.write(f"Latitude: {loc['latitude']}, Longitude: {loc['longitude']}")
+        else:
+            st.write("No locations shared yet.")
+
+        with st.sidebar:
+            st.header("Need a Ride?")
+            st.write("Click below to book your ride.")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.link_button("Book Uber", "https://www.uber.com", type="primary")
+            with col2:
+                st.link_button("Book Lyft", "https://www.lyft.com", type="primary")
+
+    elif page == "Add User":
+        st.title("Add New User")
+
+        with st.form("add_user_form"):
+            new_username = st.text_input("Enter New Username:")
+            submit_user = st.form_submit_button("Add User")
+
+            if submit_user:
+                if new_username:
+                    insert_user(new_username)
+                    st.success(f"User '{new_username}' added successfully!")
+                else:
+                    st.error("Please enter a valid username.")
+
+# Main execution
+if 'user' not in st.session_state or st.session_state['user'] is None:
+    if "code" in st.query_params:
+        callback()
+    elif st.button("Login with Auth0"):
+        auth_url = login()
+        st.markdown(f'<meta http-equiv="refresh" content="0;url={auth_url}">', unsafe_allow_html=True)
+else:
+    main_app()
+
+# Logout button
+if st.session_state['user'] is not None:
+    if st.sidebar.button("Logout"):
+        logout_url = logout()
+        st.session_state['user'] = None
+        st.markdown(f'<meta http-equiv="refresh" content="0;url={logout_url}">', unsafe_allow_html=True)
 
 # Add CSS for styling
 st.markdown(
