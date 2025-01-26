@@ -1,5 +1,4 @@
 # SWAMPED: Revolutionizing Social Responsibility in the Digital Age
-## Empowering Safer Nights Out Through Technology
 Swamped is an innovative alcohol intake tracker designed to address the critical issue of responsible drinking in our modern, interconnected world. By leveraging cutting-edge technology, we've created a solution that not only enhances the social experience but also promotes safety and accountability among friends and communities.
 ## Key Features
 - Real-time Drink Tracking: Monitor your alcohol consumption with precision, including drink types, timestamps, and locations.
@@ -9,13 +8,33 @@ Swamped is an innovative alcohol intake tracker designed to address the critical
 - One-Tap Ride Hailing: Seamlessly integrated Uber API for quick and easy safe rides home.
 - Location Sharing: Enhanced safety features inspired by Life360 for peace of mind.
 - Health Insights: Visualize long-term drinking habits and their potential impact on life expectancy.
-## How Swamped Addresses Social Issues
-Swamped tackles the pervasive problem of excessive drinking and its consequences by:
-1. Promoting group accountability and designating responsible individuals within social circles.
-2. Providing real-time data to make informed decisions about alcohol consumption.
-3. Encouraging safer transportation options through easy access to ride-sharing services.
-4. Raising awareness about long-term health impacts of drinking habits.
-By combining social features with health and safety tools, Swamped creates a supportive environment for users to enjoy their social lives responsibly. Our app represents a significant step forward in using technology to address real-world social challenges, fostering a culture of mindful drinking and mutual care in our global community.
-## The Future of Social Responsibility
-As we continue to develop Swamped, we envision a world where technology seamlessly integrates with social experiences to create safer, more enjoyable nights out. Our commitment to innovation in this space drives us to constantly improve and expand our features, always with the goal of enhancing human experiences and addressing critical social issues in our modern, globalized world. Join us in revolutionizing the way we approach social drinking and personal safety. Together, we can create a more responsible and connected world, one night out at a time.
+## Installation
+1. Clone the repository
+```
+git clone https://github.com/yourusername/swamped.git
+```
+2. Navigate to the project directory:
+```
+cd swamped
+```
+3. Install the required dependencies:
+```
+pip install -r requirements.txt
+```
 
+## Running the Application
+To run the Streamlit app:
+```
+streamlit run swamped.py
+```
+The application will be accessible through http://localhost:8501.
+
+## Project Structure
+- swamped.py: Main application file containing the Streamlit interface and core functionality.
+- smallpngswamped.png: Logo image file for the application.
+- requirements.txt: List of Python dependencies.
+- .streamlit.config.toml: Color theme for the webpage
+
+## Contact 
+For any queries or support, please contact knadanam@ufl.edu, krishiv.agarwal@ufl.edu, i.desai@ufl.edu, or nadanamryan@ufl.edu
+Join us in revolutionizing social responsibility and creating safer, more enjoyable nights out!
