@@ -1,5 +1,6 @@
 # SWAMPED: Revolutionizing Social Responsibility in the Digital Age
 Swamped is an innovative alcohol intake tracker designed to address the critical issue of responsible drinking in our modern, interconnected world. By leveraging cutting-edge technology, we've created a solution that not only enhances the social experience but also promotes safety and accountability among friends and communities.
+Proposed Domain: weswamped.co (Ownership held)
 ## Key Features
 - Real-time Drink Tracking: Monitor your alcohol consumption with precision, including drink types, timestamps, and locations.
 - Group Syncing: Create and join groups to keep track of friends' drinking habits during nights out.
