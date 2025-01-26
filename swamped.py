@@ -164,7 +164,7 @@ def calculate_BAL(username, weight):
             "Spirit": 0.40
         }
 
-        alcohol_in_drink = quantity_ml * alcohol_content.get(drink_type, 0.15) /1000
+        alcohol_in_drink = quantity_ml * alcohol_content.get(drink_type, 0.15) * .789
         total_alcohol += alcohol_in_drink
 
     # Widmark formula
