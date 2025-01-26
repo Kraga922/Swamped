@@ -169,7 +169,7 @@ def calculate_BAL(username, weight):
 
     # Widmark formula
     r = 0.68  # for males, use 0.55 for females
-    BAL = (total_alcohol / (weight * 1000 * r)) * 100
+    BAL = (total_alcohol / (weight * 3000 * r)) * 100
     return BAL
 
 # Add friend (Updated Function)
