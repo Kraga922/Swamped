@@ -12,6 +12,13 @@ import geocoder
 import pymysql
 from PIL import Image
 
+# Load the logo image
+logo = Image.open("smallpngswamped.png")
+
+st.set_page_config(
+    page_title="Swamped",  # Title of the app
+    page_icon=logo
+)
 
 # Auth0 configuration
 AUTH0_DOMAIN="dev-i0xqob7z3wcxgnv6.us.auth0.com"
@@ -38,8 +45,6 @@ if 'groups' not in st.session_state:
 if 'locations' not in st.session_state:
     st.session_state['locations'] = []
 
-# Load the logo image
-logo = Image.open("smallpngswamped.png")
 
 left_co, cent_co,last_co = st.columns(3)
 with cent_co:
@@ -508,17 +513,17 @@ def main_app():
 
                     st.markdown("""
 
-                    - Pace yourself and sip slowly[32]
+                    - Pace yourself and sip slowly
 
-                    - Use drink "spacers" — non-alcoholic drinks between alcoholic ones[32]
+                    - Use drink "spacers" — non-alcoholic drinks between alcoholic ones
 
-                    - Choose drinks with lower alcohol content[32]
+                    - Choose drinks with lower alcohol content
 
-                    - Eat before or while drinking to slow alcohol absorption[32]
+                    - Eat before or while drinking to slow alcohol absorption
 
-                    - Be ready to say "no thanks" if offered a drink when you don't want one[32]
+                    - Be ready to say "no thanks" if offered a drink when you don't want one
 
-                    - Never drink and drive - always have a designated driver or use a ride-sharing service[32]
+                    - Never drink and drive - always have a designated driver or use a ride-sharing service
 
                     """)
 
@@ -595,7 +600,7 @@ def main_app():
 if 'user' not in st.session_state or st.session_state['user'] is None:
     if "code" in st.query_params:
         callback()
-    elif st.button("🔐 Login with Auth0", type="primary"):
+    elif st.sidebar.button("🔐 Login with Auth0", type="primary"):
         auth_url = login()
         st.markdown(f'<meta http-equiv="refresh" content="0;url={auth_url}">', unsafe_allow_html=True)
 else:
